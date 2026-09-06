@@ -15,18 +15,18 @@ export default async function Home() {
   const rooms = await getMyRooms();
 
   return (
-    <div className="min-h-screen">
-      <header className="bg-background/92 sticky top-0 z-40 border-b backdrop-blur-lg">
+    <div className="flex min-h-dvh flex-col">
+      <header className="bg-background/92 sticky top-0 z-40 shrink-0 border-b backdrop-blur-lg">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Brand />
           <ThemeToggle variant="outline" />
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <div
           className={cn(
-            "mx-auto min-h-[calc(100vh-8rem)] items-center py-8",
+            "mx-auto w-full flex-1 items-center py-8",
             rooms.length
               ? "grid max-w-5xl gap-12 px-2 sm:px-8 lg:grid-cols-[1fr_26rem] lg:px-9"
               : "flex max-w-[26rem]",

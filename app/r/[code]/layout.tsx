@@ -1,3 +1,4 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowLeft, CloudOff, SearchX } from "lucide-react"
 
@@ -12,6 +13,22 @@ import { getRoomAccess } from "@/lib/data"
 import { cn } from "@/lib/utils"
 
 export const dynamic = "force-dynamic"
+
+export async function generateMetadata({ params }: {
+  params: Promise<{ code: string }>
+}): Promise<Metadata> {
+  const { code } = await params
+  const access = await getRoomAccess(code)
+  const roomName = access.state === "join"
+    ? access.preview.name
+    : access.state === "joined"
+      ? access.ledger.room.name
+      : null
+
+  return {
+    title: roomName ? `Sendit・${roomName}` : "Sendit",
+  }
+}
 
 export default async function RoomLayout({ children, params }: {
   children: React.ReactNode

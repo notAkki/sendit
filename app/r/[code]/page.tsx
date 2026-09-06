@@ -20,8 +20,6 @@ import { formatMoney, money } from "@/lib/money";
 import { createParticipantColorMap } from "@/lib/participant-colors";
 import { cn } from "@/lib/utils";
 
-export const metadata = { title: "Trip overview" };
-
 export default async function RoomOverview({
   params,
   searchParams,

@@ -16,10 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: {
-    default: "Sendit — Split the trip",
-    template: "%s · Sendit",
-  },
+  title: "Sendit",
   description:
     "A private, multi-currency expense splitter for trips with friends.",
 };
