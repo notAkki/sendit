@@ -2,10 +2,11 @@
 
 import { startTransition, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Check, Copy, Link2, MoreHorizontal, RotateCw, Settings, SlidersHorizontal, Users, WalletCards } from "lucide-react"
+import { Check, Copy, Link2, MoreHorizontal, RotateCw, Settings, SlidersHorizontal, UserPlus, Users, WalletCards } from "lucide-react"
 import { toast } from "sonner"
 
 import {
+  addMemberAction,
   renameMemberAction,
   rotateRoomCodeAction,
   setMemberArchivedAction,
@@ -15,9 +16,9 @@ import {
 import { CurrencySelect } from "@/components/sendit/currency-select"
 import { MemberAvatar } from "@/components/sendit/member-avatar"
 import { PinnedCurrencyEditor } from "@/components/sendit/pinned-currency-editor"
-import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -30,13 +31,20 @@ export function RoomManager({ ledger }: { ledger: RoomLedger }) {
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [addingParticipant, setAddingParticipant] = useState(false)
+  const [managedMemberId, setManagedMemberId] = useState<string | null>(null)
   const isCreator = ledger.currentMemberId === ledger.room.creatorMemberId
   const activeMembers = ledger.members.filter((member) => !member.mergedInto)
   const participantColors = createParticipantColorMap(ledger.members)
   const currentMember = activeMembers.find((member) => member.id === ledger.currentMemberId)
+  const managedMember = activeMembers.find((member) => member.id === managedMemberId)
   const hasRecords = ledger.expenses.length > 0 || ledger.transfers.length > 0
 
-  function run(action: () => Promise<{ ok: boolean; error?: string; data?: unknown }>, success: string) {
+  function run(
+    action: () => Promise<{ ok: boolean; error?: string; data?: unknown }>,
+    success: string,
+    onSuccess?: () => void,
+  ) {
     setPending(true)
     startTransition(async () => {
       const result = await action()
@@ -46,6 +54,7 @@ export function RoomManager({ ledger }: { ledger: RoomLedger }) {
         return
       }
       toast.success(success)
+      onSuccess?.()
       router.refresh()
     })
   }
@@ -124,10 +133,73 @@ export function RoomManager({ ledger }: { ledger: RoomLedger }) {
           )}
 
           <section>
-            <div className="mb-3 flex items-center gap-2">
-              <Users className="size-4" />
-              <p className="text-sm font-medium">Participants</p>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Users className="size-4" />
+                <p className="text-sm font-medium">Participants</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAddingParticipant((value) => !value)}
+              >
+                <UserPlus data-icon="inline-start" />
+                {addingParticipant ? "Cancel" : "Add participant"}
+              </Button>
             </div>
+            {addingParticipant && (
+              <form
+                className="mb-4"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  const form = event.currentTarget
+                  const data = new FormData(form)
+                  run(
+                    () => addMemberAction({
+                      roomId: ledger.room.id,
+                      name: data.get("name"),
+                      preferredCurrency: data.get("preferredCurrency"),
+                    }),
+                    "Participant added",
+                    () => {
+                      form.reset()
+                      setAddingParticipant(false)
+                    },
+                  )
+                }}
+              >
+                <FieldGroup className="gap-3">
+                  <Field>
+                    <FieldLabel htmlFor="new-participant-name">Name</FieldLabel>
+                    <Input
+                      id="new-participant-name"
+                      name="name"
+                      placeholder="Jamie"
+                      maxLength={60}
+                      autoComplete="off"
+                      autoFocus
+                      required
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="new-participant-currency">
+                      Preferred currency
+                    </FieldLabel>
+                    <CurrencySelect
+                      id="new-participant-currency"
+                      name="preferredCurrency"
+                      defaultValue={currentMember?.preferredCurrency || ledger.room.baseCurrency}
+                      pinnedCurrencies={ledger.room.displayCurrencies}
+                    />
+                  </Field>
+                  <Button type="submit" disabled={pending}>
+                    <UserPlus data-icon="inline-start" />
+                    Add participant
+                  </Button>
+                </FieldGroup>
+              </form>
+            )}
             <div className="divide-y">
               {activeMembers.map((member) => (
                 <div key={member.id} className="flex min-h-14 items-center gap-3 py-2">
@@ -142,31 +214,14 @@ export function RoomManager({ ledger }: { ledger: RoomLedger }) {
                   </div>
                   {member.id === ledger.room.creatorMemberId && <Badge variant="secondary">Creator</Badge>}
                   {isCreator && member.id !== ledger.room.creatorMemberId && (
-                    <AlertDialog>
-                      <AlertDialogTrigger render={<Button variant="ghost" size="icon-sm" />}>
-                        <MoreHorizontal /><span className="sr-only">Manage {member.name}</span>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Manage {member.name}</AlertDialogTitle>
-                          <AlertDialogDescription>Rename this participant or hide them from new expense forms.</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <form id={`rename-${member.id}`} onSubmit={(event) => {
-                          event.preventDefault()
-                          const data = new FormData(event.currentTarget)
-                          run(() => renameMemberAction({ roomId: ledger.room.id, memberId: member.id, name: data.get("name") }), "Participant renamed")
-                        }}>
-                          <Input name="name" defaultValue={member.name} aria-label="Participant name" required />
-                        </form>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Close</AlertDialogCancel>
-                          <AlertDialogCancel variant="outline" onClick={() => run(() => setMemberArchivedAction({ roomId: ledger.room.id, memberId: member.id, archived: !member.isArchived }), member.isArchived ? "Participant restored" : "Participant archived")}>
-                            {member.isArchived ? "Restore" : "Archive"}
-                          </AlertDialogCancel>
-                          <AlertDialogCancel variant="default" type="submit" form={`rename-${member.id}`}>Rename</AlertDialogCancel>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setManagedMemberId(member.id)}
+                    >
+                      <MoreHorizontal />
+                      <span className="sr-only">Manage {member.name}</span>
+                    </Button>
                   )}
                 </div>
               ))}
@@ -244,6 +299,69 @@ export function RoomManager({ ledger }: { ledger: RoomLedger }) {
             </section>
           )}
         </div>
+
+        <Dialog
+          open={Boolean(managedMember)}
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setManagedMemberId(null)
+          }}
+        >
+          {managedMember && (
+            <DialogContent forceOverlay>
+              <DialogHeader>
+                <DialogTitle>Manage {managedMember.name}</DialogTitle>
+                <DialogDescription>
+                  Rename this participant or hide them from new expense forms.
+                </DialogDescription>
+              </DialogHeader>
+              <form
+                id={`rename-${managedMember.id}`}
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  const data = new FormData(event.currentTarget)
+                  run(
+                    () => renameMemberAction({
+                      roomId: ledger.room.id,
+                      memberId: managedMember.id,
+                      name: data.get("name"),
+                    }),
+                    "Participant renamed",
+                  )
+                }}
+              >
+                <Input
+                  name="name"
+                  defaultValue={managedMember.name}
+                  aria-label="Participant name"
+                  required
+                />
+              </form>
+              <DialogFooter>
+                <DialogClose render={<Button variant="outline" />}>
+                  Close
+                </DialogClose>
+                <DialogClose
+                  render={<Button variant="outline" />}
+                  onClick={() => run(
+                    () => setMemberArchivedAction({
+                      roomId: ledger.room.id,
+                      memberId: managedMember.id,
+                      archived: !managedMember.isArchived,
+                    }),
+                    managedMember.isArchived ? "Participant restored" : "Participant archived",
+                  )}
+                >
+                  {managedMember.isArchived ? "Restore" : "Archive"}
+                </DialogClose>
+                <DialogClose
+                  render={<Button type="submit" form={`rename-${managedMember.id}`} />}
+                >
+                  Rename
+                </DialogClose>
+              </DialogFooter>
+            </DialogContent>
+          )}
+        </Dialog>
       </SheetContent>
     </Sheet>
   )

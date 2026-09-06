@@ -29,13 +29,13 @@ Sendit records obligations and repayments; it does not move money.
 
 2. Create a Supabase project. In **Authentication → Providers → Anonymous Sign-Ins**, enable anonymous users.
 
-3. Apply [`supabase/migrations/20260901000000_sendit.sql`](./supabase/migrations/20260901000000_sendit.sql) to a new Supabase project. You can paste it into the Supabase SQL editor, or link the Supabase CLI and run:
+3. Apply every SQL file in [`supabase/migrations`](./supabase/migrations) in filename order. In the Supabase SQL editor, paste and run each file separately; alternatively, link the Supabase CLI and run:
 
    ```bash
    supabase db push
    ```
 
-   The migration creates the schema, transactional RPCs, RLS policies, private receipt bucket, join throttling, and membership-authorized Realtime broadcasts.
+   The migrations create the schema, transactional RPCs, RLS policies, private receipt bucket, join throttling, and membership-authorized Realtime broadcasts.
 
 4. Copy the environment template.
 
@@ -82,3 +82,5 @@ Rotate the room code from **People → Creator settings** if an invite is shared
 If you applied the original migration before September 5, 2026 and room creation reports `record "new" has no field "room_id"`, paste [`supabase/migrations/20260905000000_fix_room_broadcast_trigger.sql`](./supabase/migrations/20260905000000_fix_room_broadcast_trigger.sql) into the Supabase SQL editor and run it once. No reset or seed step is required.
 
 For an existing Sendit database, paste [`supabase/migrations/20260905010000_member_payment_details.sql`](./supabase/migrations/20260905010000_member_payment_details.sql) into the SQL editor once to add member payment details and remove the old merge function.
+
+If saving your profile reports that `update_my_member_profile` cannot be found, paste [`supabase/migrations/20260905020000_member_self_rename.sql`](./supabase/migrations/20260905020000_member_self_rename.sql) into the SQL editor once. This updates the profile function to support editing your own name.

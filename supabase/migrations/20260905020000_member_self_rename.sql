@@ -38,3 +38,5 @@ revoke execute on function public.update_my_member_profile(uuid, text, text, tex
 grant execute on function public.update_my_member_profile(uuid, text, text, text) to authenticated;
 
 drop function if exists public.update_my_member_profile(uuid, text, text);
+
+notify pgrst, 'reload schema';
