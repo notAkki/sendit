@@ -59,6 +59,7 @@ export function RoomShell({
             <ExpenseForm
               room={ledger.room}
               members={ledger.members}
+              currentMemberId={ledger.currentMemberId}
               compactTrigger
             />
             <div className="flex items-center gap-2">

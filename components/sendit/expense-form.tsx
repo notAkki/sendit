@@ -51,9 +51,10 @@ async function compressReceipt(file: File) {
   }
 }
 
-export function ExpenseForm({ room, members, expense, compactTrigger = false }: {
+export function ExpenseForm({ room, members, currentMemberId, expense, compactTrigger = false }: {
   room: Room
   members: Member[]
+  currentMemberId: string
   expense?: Expense
   compactTrigger?: boolean
 }) {
@@ -82,6 +83,9 @@ export function ExpenseForm({ room, members, expense, compactTrigger = false }: 
   })
   const relevantIds = new Set([...(expense?.splits.map((split) => split.memberId) || []), expense?.paidByMemberId || ""])
   const formMembers = members.filter((member) => (!member.isArchived && !member.mergedInto) || relevantIds.has(member.id))
+  const defaultPaidByMemberId = expense?.paidByMemberId
+    || formMembers.find((member) => member.id === currentMemberId)?.id
+    || formMembers[0]?.id
   const participantColors = createParticipantColorMap(members)
 
   function toggleMember(memberId: string, checked: boolean) {
@@ -185,7 +189,7 @@ export function ExpenseForm({ room, members, expense, compactTrigger = false }: 
               </Field>
               <Field>
                 <FieldLabel htmlFor={`expense-payer-${uid}`}>Paid by</FieldLabel>
-                <NativeSelect id={`expense-payer-${uid}`} name="paidByMemberId" defaultValue={expense?.paidByMemberId || formMembers[0]?.id} required>
+                <NativeSelect id={`expense-payer-${uid}`} name="paidByMemberId" defaultValue={defaultPaidByMemberId} required>
                   {formMembers.map((member) => <NativeSelectOption value={member.id} key={member.id}>{member.name}</NativeSelectOption>)}
                 </NativeSelect>
               </Field>

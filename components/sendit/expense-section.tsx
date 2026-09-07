@@ -224,6 +224,7 @@ export function ExpenseSection({
                           <ExpenseForm
                             room={ledger.room}
                             members={ledger.members}
+                            currentMemberId={ledger.currentMemberId}
                             expense={expense}
                           />
                           <DeleteRecord
@@ -281,6 +282,7 @@ export function ExpenseSection({
                     <ExpenseForm
                       room={ledger.room}
                       members={ledger.members}
+                      currentMemberId={ledger.currentMemberId}
                       expense={expense}
                     />
                     <DeleteRecord

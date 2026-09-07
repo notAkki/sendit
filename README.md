@@ -84,3 +84,5 @@ If you applied the original migration before September 5, 2026 and room creation
 For an existing Sendit database, paste [`supabase/migrations/20260905010000_member_payment_details.sql`](./supabase/migrations/20260905010000_member_payment_details.sql) into the SQL editor once to add member payment details and remove the old merge function.
 
 If saving your profile reports that `update_my_member_profile` cannot be found, paste [`supabase/migrations/20260905020000_member_self_rename.sql`](./supabase/migrations/20260905020000_member_self_rename.sql) into the SQL editor once. This updates the profile function to support editing your own name.
+
+If editing an expense reports that `expense_id` is ambiguous, paste [`supabase/migrations/20260907000000_fix_expense_edit.sql`](./supabase/migrations/20260907000000_fix_expense_edit.sql) into the SQL editor and run it once. This replaces the affected expense-saving function without changing existing expenses.

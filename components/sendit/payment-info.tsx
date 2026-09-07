@@ -17,11 +17,8 @@ export function PaymentInfo({ value }: { value: string }) {
   }
 
   return (
-    <div className="mt-2 flex max-w-xl items-start gap-2 text-xs">
-      <p className="text-muted-foreground min-w-0 flex-1 whitespace-pre-line">
-        <span className="font-medium text-foreground">Pay via </span>
-        {value}
-      </p>
+    <div className="text-muted-foreground mt-0.5 flex min-w-0 items-center gap-1 text-xs">
+      <p className="min-w-0 whitespace-pre-line break-words">{value}</p>
       <Button type="button" variant="ghost" size="icon-xs" onClick={copy} aria-label="Copy payment information">
         {copied ? <Check /> : <Copy />}
       </Button>
