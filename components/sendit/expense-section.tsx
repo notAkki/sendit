@@ -150,7 +150,7 @@ export function ExpenseSection({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="h-12 w-full px-4">
+                  <TableHead className="h-12 w-full min-w-64 px-4">
                     Expense
                   </TableHead>
                   <TableHead className="h-12 w-px px-4 whitespace-nowrap">
@@ -176,12 +176,12 @@ export function ExpenseSection({
 
                   return (
                     <TableRow key={expense.id}>
-                      <TableCell className="w-full px-4 py-4 whitespace-normal">
+                      <TableCell className="w-full min-w-64 px-4 py-4 whitespace-normal">
                         <p className="line-clamp-2 break-words font-medium leading-snug">
                           {expense.title}
                         </p>
                         {expense.description && (
-                          <p className="text-muted-foreground mt-1 max-w-full truncate text-xs">
+                          <p className="text-muted-foreground mt-1 max-w-full whitespace-normal text-xs [overflow-wrap:anywhere]">
                             {expense.description}
                           </p>
                         )}

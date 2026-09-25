@@ -11,7 +11,7 @@ import { CurrencySelect } from "@/components/sendit/currency-select"
 import { MemberAvatar } from "@/components/sendit/member-avatar"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field"
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet, FieldTitle } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
@@ -28,6 +28,27 @@ function today() {
   const date = new Date()
   const offset = date.getTimezoneOffset() * 60_000
   return new Date(date.getTime() - offset).toISOString().slice(0, 10)
+}
+
+function totalExactAmounts(memberIds: string[], values: Record<string, string>) {
+  let total = new Decimal(0)
+  let decimalPlaces = 2
+
+  for (const memberId of memberIds) {
+    const value = values[memberId]?.trim()
+    if (!value) continue
+
+    try {
+      const amount = new Decimal(value)
+      if (!amount.isFinite()) continue
+      total = total.plus(amount)
+      decimalPlaces = Math.max(decimalPlaces, Math.min(amount.decimalPlaces(), 6))
+    } catch {
+      // Ignore incomplete values while the person is still typing.
+    }
+  }
+
+  return total.toFixed(decimalPlaces)
 }
 
 async function compressReceipt(file: File) {
@@ -63,6 +84,7 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
   const formId = `expense-form-${uid}`
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
+  const [amount, setAmount] = useState(expense?.amount || "")
   const [currency, setCurrency] = useState(expense?.currency || room.baseCurrency)
   const [mode, setMode] = useState<SplitMode>(expense?.splitMode || "equal")
   const initialIds = expense?.splits.map((split) => split.memberId) || members.filter((member) => !member.isArchived && !member.mergedInto).map((member) => member.id)
@@ -87,9 +109,24 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
     || formMembers.find((member) => member.id === currentMemberId)?.id
     || formMembers[0]?.id
   const participantColors = createParticipantColorMap(members)
+  const exactAmount = totalExactAmounts(selected, values)
+  const allMembersSelected = formMembers.length > 0
+    && formMembers.every((member) => selected.includes(member.id))
 
   function toggleMember(memberId: string, checked: boolean) {
-    setSelected((current) => checked ? [...current, memberId] : current.filter((id) => id !== memberId))
+    setSelected((current) => {
+      if (!checked) return current.filter((id) => id !== memberId)
+      return current.includes(memberId) ? current : [...current, memberId]
+    })
+  }
+
+  function changeMode(next: string[]) {
+    const nextMode = next[0] as SplitMode | undefined
+    if (!nextMode || nextMode === mode) return
+    if (mode === "exact" && new Decimal(exactAmount).greaterThan(0)) {
+      setAmount(exactAmount)
+    }
+    setMode(nextMode)
   }
 
   async function uploadReceipt(roomId: string, expenseId: string, original: File) {
@@ -195,7 +232,16 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
               </Field>
               <Field>
                 <FieldLabel htmlFor={`expense-amount-${uid}`}>Amount</FieldLabel>
-                <Input id={`expense-amount-${uid}`} name="amount" inputMode="decimal" placeholder="0.00" defaultValue={expense?.amount} required />
+                <Input
+                  id={`expense-amount-${uid}`}
+                  name="amount"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  value={mode === "exact" ? exactAmount : amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  readOnly={mode === "exact"}
+                  required
+                />
               </Field>
               <Field>
                 <FieldLabel htmlFor={`expense-currency-${uid}`}>Currency</FieldLabel>
@@ -211,7 +257,7 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
 
           <FieldSet>
             <FieldLegend variant="label">Split method</FieldLegend>
-            <ToggleGroup value={[mode]} onValueChange={(next) => next[0] && setMode(next[0] as SplitMode)} variant="outline" spacing={0} className="grid w-full grid-cols-4">
+            <ToggleGroup value={[mode]} onValueChange={changeMode} variant="outline" spacing={0} className="grid w-full grid-cols-4">
               <ToggleGroupItem value="equal">Equal</ToggleGroupItem>
               <ToggleGroupItem value="exact">Exact</ToggleGroupItem>
               <ToggleGroupItem value="percentage">Percent</ToggleGroupItem>
@@ -219,14 +265,27 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
             </ToggleGroup>
             <FieldDescription>
               {mode === "equal" && "The final cent is distributed deterministically."}
-              {mode === "exact" && `Amounts must add up to the ${currency} total.`}
+              {mode === "exact" && `The ${currency} total is calculated from the participant amounts.`}
               {mode === "percentage" && "Percentages must total exactly 100%."}
               {mode === "shares" && "Use weights such as 1, 1, and 2 for a double portion."}
             </FieldDescription>
           </FieldSet>
 
-          <FieldSet>
-            <FieldLegend variant="label">Shared by</FieldLegend>
+          <FieldSet aria-labelledby={`shared-by-${uid}`}>
+            <div className="flex min-h-7 items-center justify-between gap-3">
+              <FieldTitle id={`shared-by-${uid}`}>Shared by</FieldTitle>
+              {mode === "equal" && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setSelected(formMembers.map((member) => member.id))}
+                  disabled={allMembersSelected}
+                >
+                  Select all
+                </Button>
+              )}
+            </div>
             <div className="divide-y rounded-lg border">
               {formMembers.map((member) => {
                 const checked = selected.includes(member.id)
