@@ -22,14 +22,14 @@ export default async function Home() {
       <main className="mx-auto flex w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <div
           className={cn(
-            "mx-auto w-full flex-1 items-center py-8",
+            "mx-auto w-full min-w-0 flex-1 items-center py-8",
             rooms.length
-              ? "grid max-w-5xl gap-12 px-2 sm:px-8 lg:grid-cols-[1fr_26rem] lg:px-9"
+              ? "grid max-w-5xl gap-10 lg:grid-cols-[minmax(0,1fr)_26rem] lg:gap-12"
               : "flex max-w-[26rem]",
           )}
         >
           {rooms.length > 0 && (
-            <section aria-labelledby="your-rooms-title">
+            <section className="w-full min-w-0" aria-labelledby="your-rooms-title">
               <h1 id="your-rooms-title" className="text-2xl font-semibold tracking-tight">
                 Your rooms
               </h1>

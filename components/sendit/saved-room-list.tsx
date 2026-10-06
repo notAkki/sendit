@@ -1,6 +1,6 @@
 "use client"
 
-import { startTransition, useState, type DragEvent } from "react"
+import { startTransition, useEffect, useMemo, useRef, useState, type DragEvent } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
@@ -44,11 +44,62 @@ function RoomVisual({ entry }: { entry: JoinedRoomSummary }) {
   )
 }
 
-function participantSummary(entry: JoinedRoomSummary) {
-  const participants = entry.participants.length ? entry.participants : [entry.member]
-  const visible = participants.slice(0, 3).map((participant) => participant.name)
-  const remaining = participants.length - visible.length
+function formatParticipantSummary(names: string[], visibleCount: number) {
+  const visible = names.slice(0, visibleCount)
+  const remaining = names.length - visible.length
   return `${visible.join(", ")}${remaining > 0 ? ` +${remaining}` : ""}`
+}
+
+function ParticipantSummary({ entry }: { entry: JoinedRoomSummary }) {
+  const containerRef = useRef<HTMLParagraphElement>(null)
+  const measureRef = useRef<HTMLSpanElement>(null)
+  const names = useMemo(
+    () => (entry.participants.length ? entry.participants : [entry.member])
+      .map((participant) => participant.name),
+    [entry.member, entry.participants],
+  )
+  const [visibleCount, setVisibleCount] = useState(names.length)
+
+  useEffect(() => {
+    const container = containerRef.current
+    const measure = measureRef.current
+    if (!container || !measure) return
+    const observedContainer = container
+    const measuringElement = measure
+
+    function updateVisibleCount() {
+      const availableWidth = observedContainer.clientWidth
+      if (!availableWidth) return
+
+      let nextVisibleCount = 1
+      for (let count = names.length; count >= 1; count -= 1) {
+        measuringElement.textContent = formatParticipantSummary(names, count)
+        if (measuringElement.getBoundingClientRect().width <= availableWidth) {
+          nextVisibleCount = count
+          break
+        }
+      }
+      setVisibleCount(nextVisibleCount)
+    }
+
+    updateVisibleCount()
+    const observer = new ResizeObserver(updateVisibleCount)
+    observer.observe(observedContainer)
+    return () => observer.disconnect()
+  }, [names])
+
+  return (
+    <>
+      <p ref={containerRef} className="text-muted-foreground truncate text-sm">
+        {formatParticipantSummary(names, visibleCount)}
+      </p>
+      <span
+        ref={measureRef}
+        className="invisible fixed whitespace-nowrap text-sm"
+        aria-hidden="true"
+      />
+    </>
+  )
 }
 
 function RoomRow({
@@ -75,7 +126,7 @@ function RoomRow({
   return (
     <div
       className={cn(
-        "hover:bg-muted/50 focus-within:bg-muted/50 flex items-center transition-colors",
+        "hover:bg-muted/50 focus-within:bg-muted/50 flex w-full min-w-0 items-center transition-colors",
         isDropTarget && "bg-muted/70",
       )}
       onDragOver={onDragOver}
@@ -103,10 +154,8 @@ function RoomRow({
       >
         <RoomVisual entry={entry} />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{entry.room.name}</p>
-          <p className="text-muted-foreground truncate text-sm">
-            {participantSummary(entry)}
-          </p>
+          <p className="break-words font-medium leading-snug">{entry.room.name}</p>
+          <ParticipantSummary entry={entry} />
         </div>
       </Link>
 
@@ -207,7 +256,7 @@ export function SavedRoomList({ rooms }: { rooms: JoinedRoomSummary[] }) {
   return (
     <>
       {activeRooms.length > 0 && (
-        <div className="mt-6 divide-y border-y">
+        <div className="mt-6 w-full min-w-0 divide-y border-y">
           {activeRooms.map((entry) => (
             <RoomRow
               key={entry.room.id}
@@ -259,7 +308,7 @@ export function SavedRoomList({ rooms }: { rooms: JoinedRoomSummary[] }) {
           </Button>
 
           {showArchived && (
-            <div className="mt-2 divide-y border-y">
+            <div className="mt-2 w-full min-w-0 divide-y border-y">
               {archivedRooms.map((entry) => (
                 <RoomRow
                   key={entry.room.id}

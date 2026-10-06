@@ -48,14 +48,14 @@ export function LandingActions({ configured }: { configured: boolean }) {
   }
 
   return (
-    <div className="flex w-full flex-col gap-4">
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-4">
       {!configured && (
         <Alert>
           <AlertTitle>Supabase is not connected</AlertTitle>
           <AlertDescription>Add the project URL and publishable key to `.env.local`.</AlertDescription>
         </Alert>
       )}
-      <Card>
+      <Card className="w-full min-w-0 max-w-full">
         <Tabs defaultValue="create">
           <CardHeader>
             <CardTitle>Create or join a room</CardTitle>
