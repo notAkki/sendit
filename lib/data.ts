@@ -5,20 +5,13 @@ import { cache } from "react"
 import { normalizeRoomCode } from "@/lib/constants"
 import { isSupabaseConfigured } from "@/lib/supabase/config"
 import { createClient } from "@/lib/supabase/server"
-import type { Expense, Member, Room, RoomLedger, Transfer } from "@/lib/types"
+import type { Expense, JoinedRoomSummary, Member, Room, RoomLedger, Transfer } from "@/lib/types"
 
 type JoinPreview = {
   roomId: string
   name: string
   baseCurrency: string
   members: Array<{ id: string; name: string; preferredCurrency: string }>
-}
-
-export type JoinedRoomSummary = {
-  room: Room
-  member: Member
-  joinedAt: string
-  participantIndex: number
 }
 
 export type RoomAccess =
@@ -184,8 +177,10 @@ async function loadMyRooms(): Promise<JoinedRoomSummary[]> {
 
   const { data: identities, error: identitiesError } = await supabase
     .from("member_identities")
-    .select("room_id, member_id, created_at")
+    .select("room_id, member_id, created_at, home_position, is_home_archived")
     .eq("user_id", userId)
+    .order("is_home_archived", { ascending: true })
+    .order("home_position", { ascending: true })
     .order("created_at", { ascending: false })
 
   if (identitiesError || !identities?.length) return []
@@ -225,15 +220,12 @@ async function loadMyRooms(): Promise<JoinedRoomSummary[]> {
     const member = roomMembers.find((candidate) => candidate.id === memberId)
     if (!room || !member) return []
 
-    const participantIndex = roomMembers
-      .filter((candidate) => !candidate.mergedInto)
-      .findIndex((candidate) => candidate.id === memberId)
-
     return [{
       room,
       member,
+      participants: roomMembers.filter((candidate) => !candidate.isArchived && !candidate.mergedInto),
       joinedAt: String(identity.created_at),
-      participantIndex,
+      isArchived: Boolean(identity.is_home_archived),
     }]
   })
 }

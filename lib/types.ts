@@ -88,6 +88,14 @@ export type RoomLedger = {
   transfers: Transfer[]
 }
 
+export type JoinedRoomSummary = {
+  room: Room
+  member: Member
+  participants: Member[]
+  joinedAt: string
+  isArchived: boolean
+}
+
 export type SplitEntryInput = {
   memberId: string
   value?: string

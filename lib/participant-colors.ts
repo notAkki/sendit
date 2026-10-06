@@ -10,6 +10,18 @@ export function participantColor(index: number) {
   return `oklch(70% 0.20 ${hue.toFixed(2)})`;
 }
 
+export function stringColor(value: string) {
+  let hash = 2166136261;
+
+  for (const character of value.trim().toLocaleLowerCase()) {
+    hash ^= character.codePointAt(0) || 0;
+    hash = Math.imul(hash, 16777619);
+  }
+
+  const paletteIndex = (hash >>> 0) % 12;
+  return participantColor(paletteIndex);
+}
+
 export function createParticipantColorMap(
   participants: readonly ColorParticipant[],
 ) {

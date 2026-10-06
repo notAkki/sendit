@@ -131,6 +131,42 @@ export async function joinRoomAction(input: unknown): Promise<ActionResult<{ cod
   }
 }
 
+export async function reorderMyRoomsAction(input: unknown): Promise<ActionResult> {
+  try {
+    const values = z.object({
+      roomIds: z.array(uuidSchema).min(1).max(100),
+    }).parse(input)
+    const supabase = await createClient()
+    const { error } = await supabase.rpc("reorder_my_rooms", {
+      p_room_ids: values.roomIds,
+    })
+    if (error) throw error
+    revalidatePath("/")
+    return { ok: true, data: undefined }
+  } catch (error) {
+    return failure(error)
+  }
+}
+
+export async function setMyRoomArchivedAction(input: unknown): Promise<ActionResult> {
+  try {
+    const values = z.object({
+      roomId: uuidSchema,
+      archived: z.boolean(),
+    }).parse(input)
+    const supabase = await createClient()
+    const { error } = await supabase.rpc("set_my_room_archived", {
+      p_room_id: values.roomId,
+      p_archived: values.archived,
+    })
+    if (error) throw error
+    revalidatePath("/")
+    return { ok: true, data: undefined }
+  } catch (error) {
+    return failure(error)
+  }
+}
+
 export async function addMemberAction(input: unknown): Promise<ActionResult<{ id: string }>> {
   try {
     const values = z.object({

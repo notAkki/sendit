@@ -113,6 +113,16 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
   const allMembersSelected = formMembers.length > 0
     && formMembers.every((member) => selected.includes(member.id))
 
+  function resetNewExpense(form: HTMLFormElement) {
+    if (expense) return
+    form.reset()
+    setAmount("")
+    setCurrency(room.baseCurrency)
+    setMode("equal")
+    setSelected(formMembers.map((member) => member.id))
+    setValues({})
+  }
+
   function toggleMember(memberId: string, checked: boolean) {
     setSelected((current) => {
       if (!checked) return current.filter((id) => id !== memberId)
@@ -201,11 +211,12 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
             try {
               if (receipt?.size) await uploadReceipt(room.id, result.data.id, receipt)
               toast.success(expense ? "Expense updated" : "Expense added")
-              setOpen(false)
-              router.refresh()
             } catch (error) {
               toast.error(error instanceof Error ? `Expense saved, but receipt failed: ${error.message}` : "Expense saved, but receipt failed.")
             } finally {
+              resetNewExpense(form)
+              setOpen(false)
+              router.refresh()
               setPending(false)
             }
           })
