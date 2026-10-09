@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { z } from "zod"
 
 import { normalizeExpenseSplits } from "@/lib/accounting"
+import { buildBalanceImportPlan } from "@/lib/balance-import"
 import {
   MAX_RECEIPT_BYTES,
   RECEIPT_BUCKET,
@@ -22,6 +23,13 @@ const dateSchema = z.string().date()
 const decimalSchema = z.string().trim().refine((value) => {
   try {
     return money(value).isFinite() && !money(value).isNegative()
+  } catch {
+    return false
+  }
+}, "Enter a valid amount.")
+const signedDecimalSchema = z.string().trim().refine((value) => {
+  try {
+    return money(value).isFinite()
   } catch {
     return false
   }
@@ -63,6 +71,18 @@ const transferSchema = z.object({
   amount: positiveDecimalSchema,
   currency: currencySchema,
   note: z.string().trim().max(240).optional(),
+})
+
+const balanceImportSchema = z.object({
+  roomId: uuidSchema,
+  title: z.string().trim().min(1).max(60),
+  expenseDate: dateSchema,
+  currency: currencySchema,
+  entries: z.array(z.object({
+    memberId: uuidSchema,
+    cost: decimalSchema,
+    net: signedDecimalSchema,
+  })).min(1).max(100),
 })
 
 function failure(error: unknown): ActionResult<never> {
@@ -254,6 +274,77 @@ export async function saveExpenseAction(input: ExpenseInput): Promise<ActionResu
     if (error) throw error
     revalidateRoom(room.code)
     return { ok: true, data: { id: String(data) } }
+  } catch (error) {
+    return failure(error)
+  }
+}
+
+export async function importBalanceAction(input: unknown): Promise<ActionResult<{
+  expenseCount: number
+  total: string
+}>> {
+  try {
+    const values = balanceImportSchema.parse(input)
+    const plan = buildBalanceImportPlan(values.entries, values.currency)
+    const supabase = await createClient()
+    const room = await getRoom(supabase, values.roomId)
+    const memberIds = plan.entries.map((entry) => entry.memberId)
+    const { data: members, error: membersError } = await supabase
+      .from("room_members")
+      .select("id, name, is_archived, merged_into")
+      .eq("room_id", values.roomId)
+      .in("id", memberIds)
+    if (membersError) throw membersError
+    if (!members || members.length !== memberIds.length) {
+      throw new Error("One or more participants are not available in this room.")
+    }
+    if (members.some((member) => member.is_archived || member.merged_into)) {
+      throw new Error("Archived or merged participants cannot be included in an import.")
+    }
+
+    const membersById = new Map(members.map((member) => [String(member.id), String(member.name)]))
+    const fx = await getFxSnapshot({
+      from: values.currency,
+      to: room.base_currency,
+      date: values.expenseDate,
+    })
+    const expenses = plan.expenses.map((expense) => {
+      const baseAmount = money(expense.amount)
+        .mul(fx.rate)
+        .toFixed(currencyDigits(room.base_currency))
+      const baseAllocations = convertAndAllocate(expense.splits, baseAmount, room.base_currency)
+      const baseByMember = new Map(baseAllocations.map((item) => [item.memberId, item.amount]))
+      const payerName = membersById.get(expense.paidByMemberId) || "Participant"
+      return {
+        title: `${values.title} — ${payerName} paid`.slice(0, 100),
+        description: `Imported balance summary from ${values.title}.`,
+        amount: expense.amount,
+        baseAmount,
+        paidByMemberId: expense.paidByMemberId,
+        splits: expense.splits.map((split) => ({
+          memberId: split.memberId,
+          amount: split.amount,
+          baseAmount: baseByMember.get(split.memberId)!,
+        })),
+      }
+    })
+
+    const { error } = await supabase.rpc("import_balance_expenses", {
+      p_room_id: values.roomId,
+      p_expense_date: values.expenseDate,
+      p_currency: values.currency,
+      p_fx_rate: fx.rate,
+      p_fx_requested_date: fx.requestedDate,
+      p_fx_effective_date: fx.effectiveDate,
+      p_fx_source: fx.source,
+      p_expenses: expenses,
+    })
+    if (error) throw error
+    revalidateRoom(room.code)
+    return {
+      ok: true,
+      data: { expenseCount: expenses.length, total: plan.total },
+    }
   } catch (error) {
     return failure(error)
   }

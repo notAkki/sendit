@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
+import { normalizeMoneyInput } from "@/lib/money-input"
 import type { Member, Room, Transfer } from "@/lib/types"
 
 function today() {
@@ -61,7 +62,8 @@ export function TransferForm({ room, members, transfer, fromMemberId, toMemberId
               fromMemberId: String(data.get("fromMemberId") || ""),
               toMemberId: String(data.get("toMemberId") || ""),
               transferDate: String(data.get("transferDate") || ""),
-              amount: String(data.get("amount") || ""),
+              amount: normalizeMoneyInput(String(data.get("amount") || ""), selectedCurrency)
+                || String(data.get("amount") || ""),
               currency: selectedCurrency,
               note: String(data.get("note") || ""),
             })
@@ -94,7 +96,18 @@ export function TransferForm({ room, members, transfer, fromMemberId, toMemberId
             <div className="grid grid-cols-[1fr_8rem] gap-3">
               <Field>
                 <FieldLabel htmlFor={`transfer-amount-${uid}`}>Amount</FieldLabel>
-                <Input id={`transfer-amount-${uid}`} name="amount" inputMode="decimal" defaultValue={transfer?.amount || amount} placeholder="0.00" required />
+                <Input
+                  id={`transfer-amount-${uid}`}
+                  name="amount"
+                  inputMode="decimal"
+                  defaultValue={transfer?.amount || amount}
+                  placeholder="0.00"
+                  onBlur={(event) => {
+                    const normalized = normalizeMoneyInput(event.currentTarget.value, selectedCurrency)
+                    if (normalized) event.currentTarget.value = normalized
+                  }}
+                  required
+                />
               </Field>
               <Field>
                 <FieldLabel htmlFor={`transfer-currency-${uid}`}>Currency</FieldLabel>

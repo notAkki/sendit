@@ -8,6 +8,7 @@ import { toast } from "sonner"
 
 import { attachReceiptAction, saveExpenseAction } from "@/app/actions/sendit"
 import { CurrencySelect } from "@/components/sendit/currency-select"
+import { ImportBalanceForm } from "@/components/sendit/import-balance-form"
 import { MemberAvatar } from "@/components/sendit/member-avatar"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -20,6 +21,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { MAX_RECEIPT_BYTES, RECEIPT_BUCKET, RECEIPT_TYPES } from "@/lib/constants"
+import { normalizeMoneyInput, parseMoneyInput } from "@/lib/money-input"
 import { createParticipantColorMap } from "@/lib/participant-colors"
 import { createClient } from "@/lib/supabase/client"
 import type { Expense, Member, Room, SplitMode } from "@/lib/types"
@@ -39,8 +41,8 @@ function totalExactAmounts(memberIds: string[], values: Record<string, string>) 
     if (!value) continue
 
     try {
-      const amount = new Decimal(value)
-      if (!amount.isFinite()) continue
+      const amount = parseMoneyInput(value)
+      if (!amount) continue
       total = total.plus(amount)
       decimalPlaces = Math.max(decimalPlaces, Math.min(amount.decimalPlaces(), 6))
     } catch {
@@ -176,7 +178,7 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
           </>
         )}
       </SheetTrigger>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+      <SheetContent className="w-full overflow-x-hidden overflow-y-auto sm:max-w-xl">
         <SheetHeader className="border-b">
           <SheetTitle>{expense ? "Edit expense" : "Add an expense"}</SheetTitle>
         </SheetHeader>
@@ -197,11 +199,19 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
               title: String(data.get("title") || ""),
               description: String(data.get("description") || ""),
               expenseDate: String(data.get("expenseDate") || ""),
-              amount: String(data.get("amount") || ""),
+              amount: normalizeMoneyInput(String(data.get("amount") || ""), currency)
+                || String(data.get("amount") || ""),
               currency,
               paidByMemberId: String(data.get("paidByMemberId") || ""),
               splitMode: mode,
-              splits: selected.map((memberId) => ({ memberId, value: mode === "equal" ? undefined : values[memberId] })),
+              splits: selected.map((memberId) => ({
+                memberId,
+                value: mode === "equal"
+                  ? undefined
+                  : mode === "exact"
+                    ? normalizeMoneyInput(values[memberId] || "", currency) || values[memberId]
+                    : values[memberId],
+              })),
             })
             if (!result.ok) {
               setPending(false)
@@ -250,6 +260,11 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
                   placeholder="0.00"
                   value={mode === "exact" ? exactAmount : amount}
                   onChange={(event) => setAmount(event.target.value)}
+                  onBlur={() => {
+                    if (mode === "exact" || !amount) return
+                    const normalized = normalizeMoneyInput(amount, currency)
+                    if (normalized) setAmount(normalized)
+                  }}
                   readOnly={mode === "exact"}
                   required
                 />
@@ -268,12 +283,15 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
 
           <FieldSet>
             <FieldLegend variant="label">Split method</FieldLegend>
-            <ToggleGroup value={[mode]} onValueChange={changeMode} variant="outline" spacing={0} className="grid w-full grid-cols-4">
-              <ToggleGroupItem value="equal">Equal</ToggleGroupItem>
-              <ToggleGroupItem value="exact">Exact</ToggleGroupItem>
-              <ToggleGroupItem value="percentage">Percent</ToggleGroupItem>
-              <ToggleGroupItem value="shares">Shares</ToggleGroupItem>
-            </ToggleGroup>
+            <div className="flex items-center gap-2">
+              <ToggleGroup value={[mode]} onValueChange={changeMode} variant="outline" spacing={0} className="grid min-w-0 flex-1 grid-cols-4">
+                <ToggleGroupItem value="equal">Equal</ToggleGroupItem>
+                <ToggleGroupItem value="exact">Exact</ToggleGroupItem>
+                <ToggleGroupItem value="percentage">Percent</ToggleGroupItem>
+                <ToggleGroupItem value="shares">Shares</ToggleGroupItem>
+              </ToggleGroup>
+              {!expense && <ImportBalanceForm room={room} members={members} />}
+            </div>
             <FieldDescription>
               {mode === "equal" && "The final cent is distributed deterministically."}
               {mode === "exact" && `The ${currency} total is calculated from the participant amounts.`}
@@ -301,15 +319,15 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
               {formMembers.map((member) => {
                 const checked = selected.includes(member.id)
                 return (
-                  <div key={member.id} className="flex min-h-13 items-center gap-3 px-3 py-2">
+                  <div key={member.id} className="flex min-h-13 min-w-0 max-w-full items-center gap-3 overflow-hidden px-3 py-2">
                     <Checkbox id={`split-${uid}-${member.id}`} checked={checked} onCheckedChange={(next) => toggleMember(member.id, next === true)} />
-                    <FieldLabel htmlFor={`split-${uid}-${member.id}`} className="flex min-w-0 flex-1 items-center gap-2">
+                    <FieldLabel htmlFor={`split-${uid}-${member.id}`} className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
                       <MemberAvatar
                         name={member.name}
                         size="sm"
                         color={participantColors.get(member.id)}
                       />
-                      <span className="truncate">{member.name}</span>
+                      <span className="min-w-0 flex-1 truncate">{member.name}</span>
                     </FieldLabel>
                     {checked && mode !== "equal" && (
                       <InputGroup className="w-28">
@@ -318,6 +336,11 @@ export function ExpenseForm({ room, members, currentMemberId, expense, compactTr
                           inputMode="decimal"
                           value={values[member.id] || ""}
                           onChange={(event) => setValues((current) => ({ ...current, [member.id]: event.target.value }))}
+                          onBlur={() => {
+                            if (mode !== "exact") return
+                            const normalized = normalizeMoneyInput(values[member.id] || "", currency)
+                            if (normalized) setValues((current) => ({ ...current, [member.id]: normalized }))
+                          }}
                           placeholder="0"
                           required
                         />
